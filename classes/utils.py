@@ -8,6 +8,7 @@ import logging
 from scipy.stats import beta
 from classes.ad_unit import AdUnit
 from classes.user import User
+from classes.consts import MAX_CAPACITY_PER_ADNETWORK
 
 
 def create_real_users(path, init_waterfall, adnetwork_names, users_df=None, path_log=None, beta_size=3):
