@@ -12,3 +12,7 @@ THRESHOLD = 30 # maximal difference in price between two successive ad-units
 VALIDATION = 1  # number of cross validation
 MAX_ITER = 40
 EPSILON = 0.1 # minimum improvement required in $$
+
+MAX_CAPACITY_PER_ADNETWORK = {"Unity": 1,
+                              "Facebook": 1,
+                              "Admob": 1}
