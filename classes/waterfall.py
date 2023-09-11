@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from classes.user import User
 from classes.ad_unit import AdUnit
-from classes.consts import DF_COLUMNS, THRESHOLD
+from classes.consts import DF_COLUMNS, MAX_CAPACITY_PER_ADNETWORK, THRESHOLD
 from classes.utils import create_ad_units
 
 class Waterfall:
@@ -49,6 +51,28 @@ class Waterfall:
 
         return sum([1 for ad_unit in self.ad_units if ad_unit.section == "Auto"])
 
+    def add_default_ad_unit(self):
+        """Adding default ad-unit with price=0 that essentially accepts all users.
+        The use case is catching all users that wasn't catched by any real ad-unit."""
+
+        self.add_ad_unit(AdUnit.get_default_ad_unit())
+
+    def add_ad_unit(self, ad_unit, order=True):
+        adnetwork_name = ad_unit.adnetwork_name
+        ad_unit_id = ad_unit.ad_unit_id
+
+        assert self.adnetwork_has_capacity(ad_unit.adnetwork_name), \
+            f"cannot add more ad-units from ad-network {adnetwork_name}"
+
+        assert ad_unit_id not in self.ad_units_by_id.keys(), \
+            f"trying to add ad-unit with ad-unit id already in use: {ad_unit_id}"
+
+        self.ad_units.append(ad_unit)
+        self.adnetworks_capacities[adnetwork_name] += 1
+        self.ad_units_by_id[ad_unit_id] = ad_unit
+        if order:
+            self.set_ad_unit_order(ad_unit)
+
     def reorder(self, sort_by='order', reverse=False):
         """Ordering the waterfall based on the sort_by column.
         For example, 'sort_by' can by 'order' or 'price'."""
@@ -78,8 +102,22 @@ class Waterfall:
         for i, ad_unit in enumerate(self.ad_units):
             ad_unit.order = i + 1
 
+    def remove_ad_unit(self, ad_unit):
+        self.ad_units.remove(ad_unit)
+        self.adnetworks_capacities[ad_unit.adnetwork_name] -= 1
+        ad_unit.order = -1
+        self.ad_units_by_id.pop(ad_unit.ad_unit_id)
+        self.reorder()
+
     def get_adnetworks(self):
         return {ad_unit.adnetwork_name for ad_unit in self.ad_units}
+
+    def set_ad_units_by_id_dict(self):
+        """Setting a dictionary mapping ad_unit_id to the actual ad_unit"""
+
+        self.ad_units_by_id = {}
+        for ad_unit in self.ad_units:
+            self.ad_units_by_id[ad_unit.ad_unit_id] = ad_unit
 
     def set_df(self, df):
         """Setting, after cleaning and adding few columns (adnetwork_name and price),
@@ -116,7 +154,7 @@ class Waterfall:
         ad_units_params_per_adnetwork = {}
         for adnetwork in ad_unit_groups:
             ad_units_params_per_adnetwork[adnetwork] = [dict(self.df.iloc[i]) for i in ad_unit_groups[adnetwork]]
-        self.ad_units = create_ad_units(ad_units_params_per_adnetwork, default_p_acceptance=self.default_p_acceptance)
+        self.ad_units = create_ad_units(ad_units_params_per_adnetwork)
         self.reorder()
 
     def run_single_user(self, user):
@@ -179,6 +217,22 @@ class Waterfall:
         ad_unit.order = order
         self.reorder()
 
+    def set_ad_unit_price(self, ad_unit, price, order=True, order_sign=-1, perturb_price=False):
+        """Setting the price of ad_unit and placing it in the right order.
+        If order is True then we just order the waterfall by the logic of of the method set_ad_unit_order;
+        Otherwise, if order is a number we set the order of ad_unit to order and ordering the waterfall acording
+        to that new order.
+        If perturb_price is False and the floor price of ad_unit > 10 then there will be a change of price only if the
+        change if larger than self.smallest_price_change"""
+
+        if self.smallest_price_change <= abs(price - ad_unit.price) or perturb_price or ad_unit.price <= 10:
+            ad_unit.set_price(price)
+            if type(order) in (int, float):
+                ad_unit.order = order
+                self.reorder()
+            elif order:
+                self.set_ad_unit_order(ad_unit, order_sign=order_sign)
+
     def get_revenue(self):
         return sum([ad_unit.revenue for ad_unit in self.ad_units])
 
@@ -218,6 +272,21 @@ class Waterfall:
 
         return check
 
+    def plot_waterfall_distribution(self):
+        """Plotting waterfalls rpm vs impression graph before and after running simulated users."""
+
+        df = self.get_df()
+
+        sns.set_style("darkgrid", {"axes.facecolor": "1"})
+        plt.figure(figsize=(15, 10))
+        ax = sns.scatterplot(data=df, x="rpm", y="impressions", hue=df["adnetwork_name"].tolist(), s=100)
+        if self.df is not None:
+            ax = sns.scatterplot(data=self.df, x="rpm", y="impressions",
+                                 hue=self.df["adnetwork_name"].tolist(), s=100, marker="+")
+        ax.legend(title='adnetworks')
+        ax.set_title("Waterfall Distribution - o=simulation +=real")
+        plt.plot()
+
     def compare_waterfall(self, path_B):
         """This function compares the waterfall to another waterfallB with respect to the number of impression per instance"""
 
@@ -225,7 +294,7 @@ class Waterfall:
         waterfallB = Waterfall(csv_path=path_B)
 
         if len(self.ad_units) != len(waterfallB.ad_units):  # validation
-            print('error! waterfall are not of the same length')
+            print('error! waterfall are not in the same length')
 
         vecA = []
         vecB = []
