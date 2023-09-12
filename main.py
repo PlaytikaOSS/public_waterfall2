@@ -7,8 +7,8 @@ from classes.waterfall import Waterfall
 
 if __name__ == '__main__':
 
-    csv_path_waterfall = f"data/waterfall_data/waterfall.csv"
-    csv_path_users = "data/valuation_folder/users_valuations_beta.csv"
+    csv_path_waterfall = f"data/waterfall_data/init_synth_waterfall1.csv"
+    csv_path_users = "data/valuation_folder/synthetic_valuation_matrix.csv"
     waterfall_name = os.path.basename(csv_path_waterfall)
     ADNETWORKS = pd.read_csv(csv_path_users, sep=',', index_col=0, nrows=1).columns[3:]
     algo = 'SandS'
