@@ -8,7 +8,7 @@ import logging
 from itertools import permutations
 from classes.ad_unit import AdUnit
 from classes.waterfall import Waterfall
-from classes.consts import THRESHOLD, MAX_PRICE
+from classes.consts import THRESHOLD, MAX_PRICE, MAX_CAPACITY_PER_ADNETWORK
 
 
 def generate_valid_neighbors(waterfall):
@@ -39,7 +39,7 @@ def generate_valid_neighbors(waterfall):
                 neighbors.append(temp)
 
     # try to add new instance
-    valid_networks = list(MAX_CAPACITY_PER_ADNETWORK_paper.keys())
+    valid_networks = list(MAX_CAPACITY_PER_ADNETWORK.keys())
     for i in valid_networks:
         if waterfall.adnetwork_has_capacity(i):
             flag = 1
